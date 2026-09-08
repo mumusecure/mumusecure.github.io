@@ -250,8 +250,11 @@ async function buildBody(row, system) {
       const t = (d - r * cat.ring[0]) / (r * (cat.ring[1] - cat.ring[0]));
       uv.setXY(i, t, 0.5);
     }
+    const rp = b.progress ?? 0;   // 고리도 조명을 받아야 한다 — 미확인이면 거의 안 보인다
     const ring = new THREE.Mesh(rg, new THREE.MeshBasicMaterial({
-      map: ringTex, transparent: true, side: THREE.DoubleSide, opacity: .92, depthWrite: false
+      map: ringTex, transparent: true, side: THREE.DoubleSide, depthWrite: false,
+      opacity: 0.92 * (0.10 + 0.90 * rp),
+      color: new THREE.Color().setScalar(0.22 + 0.78 * rp)
     }));
     ring.rotation.x = Math.PI / 2;
     ring.rotation.y = THREE.MathUtils.degToRad(-26.7);
@@ -291,10 +294,34 @@ function flyTo(entry, instant = false) {
     .add(side.multiplyScalar(0.78))
     .add(new THREE.Vector3(0, 0.30, 0)).normalize();
   const camTo = to.clone().add(dir.multiplyScalar(dist));
+  state.lastView = { kind: 'body', id: entry.data.id };
   if (instant) { camera.position.copy(camTo); controls.target.copy(to); controls.update(); return; }
   flight = { t: 0, dur: 1700, cf: camera.position.clone(), ct: camTo, tf: controls.target.clone(), tt: to };
 }
 const easeInOut = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+// 성계 전체를 한눈에 — 항해를 건너뛰고 위치를 파악하고 싶을 때
+function overview(sysIndex = 0, instant = false) {
+  const sys = state.data.systems[sysIndex];
+  const list = state.bodies.filter(e => e.system === sys);
+  if (!list.length) return;
+  const far = Math.max(...list.map(e => e.group.position.length()));
+  const a = THREE.MathUtils.degToRad(sysIndex * GOLDEN);
+  const arm = new THREE.Vector3(Math.cos(a), 0, Math.sin(a));
+  const perp = new THREE.Vector3(0, 1, 0).cross(arm).normalize();
+  const to = arm.clone().multiplyScalar(far * 0.52);
+  const vFov = THREE.MathUtils.degToRad(camera.fov);
+  const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+  let dist = (far * 0.62) / Math.tan(hFov / 2) * 1.12;
+  if (!Number.isFinite(dist) || dist <= 0) dist = far * 1.8;
+  const off = perp.multiplyScalar(0.80)
+    .add(new THREE.Vector3(0, 0.55, 0))
+    .add(arm.clone().multiplyScalar(0.12)).normalize();
+  const camTo = to.clone().add(off.multiplyScalar(dist));
+  state.lastView = { kind: 'overview', i: sysIndex };
+  if (instant) { camera.position.copy(camTo); controls.target.copy(to); controls.update(); return; }
+  flight = { t: 0, dur: 1900, cf: camera.position.clone(), ct: camTo, tf: controls.target.clone(), tt: to };
+}
 
 /* ───────────────────────── UI ───────────────────────── */
 const stateOf = p => (p >= .999 ? 'lit' : p > .001 ? 'partial' : 'dark');
@@ -367,16 +394,33 @@ function renderSummary() {
 /* ───────────────────────── 루프 ───────────────────────── */
 const _s = new THREE.Vector3();
 function resize() {
-  const w = innerWidth, h = innerHeight;
+  // 숨겨진 탭에서 로드되면 innerWidth/Height 가 0이라 aspect 가 NaN 이 된다 → 카메라 좌표 전체가 무너짐
+  const w = Math.max(innerWidth, 1), h = Math.max(innerHeight, 1);
   renderer.setSize(w, h, false);
   camera.aspect = w / h; camera.updateProjectionMatrix();
 }
-addEventListener('resize', resize);
+addEventListener('resize', () => { resize(); reframe(); });
 
-let last = performance.now();
+// 마지막으로 잡았던 화면을 기억해 두고, 창 크기가 바뀌면 다시 잡는다
+function reframe() {
+  if (!state.lastView) return;
+  if (state.lastView.kind === 'overview') overview(state.lastView.i, true);
+  else {
+    const e = state.bodies.find(x => x.data.id === state.lastView.id);
+    if (e) flyTo(e, true);
+  }
+}
+
+let last = performance.now(), lastW = 0, lastH = 0;
 function tick(now) {
   const dt = Math.min(now - last, 50); last = now;
   requestAnimationFrame(tick);
+
+  // 숨겨진 탭에서 로드된 뒤 처음 보일 때 크기가 확정되므로 여기서 다시 잡는다
+  if (innerWidth !== lastW || innerHeight !== lastH) {
+    lastW = innerWidth; lastH = innerHeight;
+    resize(); reframe();
+  }
 
   if (flight) {
     flight.t += dt;
@@ -388,15 +432,24 @@ function tick(now) {
   controls.update();
   nebula.material.uniforms.uTime.value = now / 1000;
 
-  for (const e of state.bodies) {
-    e.mesh.rotation.y += dt * 0.000045;
-    // 라벨 투영
+  for (const e of state.bodies) e.mesh.rotation.y += dt * 0.000045;
+
+  // 라벨 — 카메라에 가까운 것부터 자리를 잡고, 겹치면 뒤엣것을 숨긴다
+  const placed = [];
+  const ordered = state.bodies
+    .map(e => ({ e, d: camera.position.distanceTo(e.group.position) }))
+    .sort((a, b) => a.d - b.d);
+  for (const { e } of ordered) {
     _s.copy(e.group.position).project(camera);
-    const vis = _s.z < 1;
-    e.tag.style.opacity = vis ? '1' : '0';
-    if (vis) {
-      e.tag.style.left = (_s.x * .5 + .5) * innerWidth + e.radius * 4 + 'px';
-      e.tag.style.top = (-_s.y * .5 + .5) * innerHeight + 'px';
+    const x = (_s.x * .5 + .5) * innerWidth + 14;
+    const y = (-_s.y * .5 + .5) * innerHeight;
+    const onScreen = _s.z < 1 && x > -60 && x < innerWidth + 60 && y > -40 && y < innerHeight + 40;
+    const clear = onScreen && !placed.some(q => Math.abs(q.x - x) < 78 && Math.abs(q.y - y) < 22);
+    e.tag.style.opacity = clear ? '1' : '0';
+    if (clear) {
+      placed.push({ x, y });
+      e.tag.style.left = x + 'px';
+      e.tag.style.top = y + 'px';
       e.tag.classList.toggle('lit', (e.data.progress ?? 0) > .001);
     }
   }
@@ -452,8 +505,12 @@ const bootMsg = boot.querySelector('.boot-msg');
   bootBar.style.width = '88%';
   bootMsg.textContent = '항로 계산';
 
+  resize();
   renderStarmap(); renderSummary();
-  if (state.bodies.length) { flyTo(state.bodies[0], true); select(state.bodies[0].data.id); }
+  if (state.bodies.length) {
+    if (location.hash === '#overview') { overview(0, true); }
+    else { flyTo(state.bodies[0], true); select(state.bodies[0].data.id); }
+  }
   else { camera.position.set(0, 30, 90); controls.target.set(0, 0, 0); }
 
   bootBar.style.width = '100%';
@@ -479,5 +536,6 @@ document.getElementById('starmap-toggle').onclick = e => {
   p.classList.toggle('collapsed');
   e.target.textContent = p.classList.contains('collapsed') ? '+' : '−';
 };
+document.getElementById('btn-overview').onclick = () => overview(0);
 document.getElementById('btn-summary').onclick = () => document.getElementById('summary-sheet').hidden = false;
 document.getElementById('summary-close').onclick = () => document.getElementById('summary-sheet').hidden = true;
