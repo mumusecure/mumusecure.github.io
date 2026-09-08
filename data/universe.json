@@ -1,0 +1,30 @@
+{
+  "meta": {
+    "handle": "무무",
+    "title": "무무의 항해 기록",
+    "subtitle": "지구에서 시작해 우주 깊은 곳으로",
+    "origin_date": "2026-09-08"
+  },
+  "systems": [
+    {
+      "id": "sol",
+      "name": "태양계",
+      "field": "PQC",
+      "field_desc": "양자 내성 암호 · Post-Quantum Cryptography",
+      "bodies": [
+        {
+          "id": "earth",
+          "name": "지구",
+          "en": "Earth",
+          "texture": "earth",
+          "progress": 1,
+          "title": "출발점",
+          "date": "2026-09-08",
+          "summary": "항해가 시작된 곳. 여기서부터 바깥으로 나아간다.",
+          "notes": [],
+          "moons": []
+        }
+      ]
+    }
+  ]
+}

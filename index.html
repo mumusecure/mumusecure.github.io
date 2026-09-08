@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>무무 · 항해 기록</title>
+<meta name="description" content="무무의 학습 항해 기록. 지구에서 시작해 우주 깊은 곳으로.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/pretendard.css">
+<link rel="stylesheet" href="assets/css/style.css">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+
+<canvas id="stage"></canvas>
+
+<div id="boot">
+  <div class="boot-inner">
+    <div class="boot-mark">MUMU</div>
+    <div class="boot-bar"><i></i></div>
+    <div class="boot-msg">항법 시스템 초기화 중</div>
+  </div>
+</div>
+
+<header id="topbar">
+  <div class="brand">
+    <span class="brand-name">무무</span>
+    <span class="brand-sub">항해 기록</span>
+  </div>
+  <nav class="top-actions">
+    <button id="btn-summary" class="ghost">요약 보기</button>
+    <a class="ghost" href="console.html">관제</a>
+  </nav>
+</header>
+
+<aside id="starmap" class="panel">
+  <div class="panel-head">
+    <span class="panel-title">성계 지도</span>
+    <button id="starmap-toggle" class="icon" aria-label="접기">−</button>
+  </div>
+  <div id="starmap-body" class="panel-body"></div>
+  <div class="panel-foot">
+    <div class="progress-row">
+      <span>항해 진행도</span><span id="overall">0%</span>
+    </div>
+    <div class="progress-track"><i id="overall-bar"></i></div>
+  </div>
+</aside>
+
+<section id="detail" class="panel" hidden>
+  <button id="detail-close" class="icon close" aria-label="닫기">×</button>
+  <div class="detail-eyebrow"><span id="d-system"></span></div>
+  <h2 id="d-name"></h2>
+  <div id="d-en" class="detail-en"></div>
+  <div id="d-state" class="chip"></div>
+  <p id="d-summary"></p>
+  <div id="d-moons" class="moons"></div>
+</section>
+
+<div id="labels"></div>
+
+<div id="summary-sheet" hidden>
+  <div class="sheet">
+    <button id="summary-close" class="icon close" aria-label="닫기">×</button>
+    <h2>무무 · 요약</h2>
+    <p class="sheet-lead">3D 항해를 건너뛰고 싶다면 여기서 전체를 한눈에.</p>
+    <div id="summary-body"></div>
+  </div>
+</div>
+
+<footer id="credits">
+  텍스처: NASA Visible Earth (Public Domain) · Solar System Scope (CC BY 4.0)
+</footer>
+
+<script type="module" src="assets/js/app.js"></script>
+</body>
+</html>
